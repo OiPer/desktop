@@ -4,8 +4,8 @@ OiPer is a privacy-first voice-to-text desktop app. Hold a global hotkey to reco
 
 ## Quick start
 
-0. Download `OiPer` from: https://github.com/oiper/desktop/releases
-1. Open `OiPer`. And follow the onboarding instructions to set up your preferred speech model and hotkey.
+0. Download OiPer from: https://github.com/oiper/desktop/releases
+1. Open OiPer. And follow the onboarding instructions to set up your preferred speech model and hotkey.
 2. Hold the hotkey to record your voice, release to transcribe, and the result will be injected into the active app.
 
 ### Supported platforms
