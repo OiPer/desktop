@@ -2,34 +2,24 @@
 
 OiPer is a privacy-first voice-to-text desktop app. Hold a global hotkey to record, release to transcribe, and the result is injected into the active app. Optional text cleanup can run locally or via an online provider.
 
-## Get the app
-
-- Download the latest release from the GitHub Releases page for this repository:
-  https://github.com/oiper/desktop/releases
-- Install the package for your OS.
-- Availability: Only Windows is supported now. macOS support is coming soon.
-- On first launch, allow microphone access when prompted.
-
 ## Quick start
 
-1. Open OiPer.
-2. Choose a speech model and download it.
-3. Press and hold `Shift+Space` to record.
-4. Release to transcribe and insert into the focused app.
+0. Download `OiPer` from: https://github.com/oiper/desktop/releases
+1. Open `OiPer`. And follow the onboarding instructions to set up your preferred speech model and hotkey.
+2. Hold the hotkey to record your voice, release to transcribe, and the result will be injected into the active app.
 
-## Settings
+### Supported platforms
 
-- Speech model selection and downloads.
-- Backend preference (auto/cpu/gpu, where available).
-- Text optimization: online or local.
-- Online provider configuration (base URL, API key, model name).
-- Autostart on system login.
+- ✅ macOS: Fully supported.
+- ✅ Windows: Fully supported.
+- 🚧 Linux (X11): Limited support.
+- ❌ Linux (Wayland): Not supported yet.
 
 ## Privacy
 
 - Transcription runs locally on your machine.
+- Activity logs and audio and other data stay on-device.
 - Online optimization is optional and requires your API key.
-- Activity logs and audio stay on-device.
 
 ## Troubleshooting
 
@@ -40,8 +30,6 @@ During our development phase, before the official release, the app is not yet si
 ```sh
 xattr -rd com.apple.quarantine /Applications/OiPer.app
 ```
-
-We are working on signing the app with Apple, after which this step will no longer be needed.
 
 ### macOS: Permissions not working after an update
 
