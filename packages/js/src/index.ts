@@ -56,7 +56,7 @@ function pipePath() {
   throw new OiPerError(`Unsupported platform: ${process.platform}`, null)
 }
 
-async function call<T>(payload: Record<string, string>): Promise<T> {
+async function call<T>(payload: Record<string, string | undefined>): Promise<T> {
   const socket = net.connect(pipePath())
   try {
     await once(socket, 'connect')
@@ -99,7 +99,7 @@ export async function workflows() {
 export async function text(options: {
   audioPath: string
   contentType: ContentType
-  workflowId: string
+  workflowId?: string
 }): Promise<TextResult> {
   const response = await call<TextResponse>({
     method: 'text',
@@ -113,7 +113,7 @@ export async function text(options: {
   return { text: response.text, historyId: response.history_id }
 }
 
-export async function retry(options: { historyId: string; workflowId: string }): Promise<TextResult> {
+export async function retry(options: { historyId: string; workflowId?: string }): Promise<TextResult> {
   const response = await call<TextResponse>({
     method: 'retry',
     history_id: options.historyId,
