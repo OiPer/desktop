@@ -7,12 +7,14 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   npm:
+    if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: packages/js
@@ -43,3 +45,107 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public --provenance
+
+  homebrew:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: oiper/homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+
+      - name: Update OiPer cask
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          assets=$(gh api "repos/oiper/desktop/releases/tags/$TAG" --jq '.assets[] | "\(.name) \(.digest)"')
+
+          for pair in on_arm:aarch64 on_intel:x64; do
+            block="${pair%%:*}"
+            arch="${pair#*:}"
+            name="OiPer_${version}_${arch}.dmg"
+            digest=$(echo "$assets" | awk -v name="$name" '$1 == name { print $2 }')
+
+            if [ -z "$digest" ] && [ "$arch" = "x64" ]; then
+              echo "No $name in $TAG, keeping the Intel cask version."
+              continue
+            fi
+            if [[ "$digest" != sha256:* ]]; then
+              echo "::error::Missing sha256 digest for $name in $TAG"
+              exit 1
+            fi
+
+            sed -i "/$block do/,/^  end/ { s/version \".*\"/version \"$version\"/; s/sha256 \".*\"/sha256 \"${digest#sha256:}\"/; }" Casks/oiper.rb
+          done
+
+          cat Casks/oiper.rb
+
+      - name: Push cask update
+        run: |
+          git config user.name "OiPer [BOT]"
+          git config user.email "bot@oiper.com"
+          git commit -am "Update OiPer to ${{ github.event.release.tag_name }}" || true
+          git push
+
+  notify-subscribers:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.environment }}
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [production, development]
+
+    steps:
+      - name: Email release notes to subscribers
+        if: ${{ matrix.environment == 'development' || endsWith(github.event.release.tag_name, '.0') }}
+        env:
+          TARGET: ${{ matrix.environment }}
+          OIPER_API_URL: ${{ vars.OIPER_API_URL }}
+          NOTIFICATION_INTERNAL_API_KEY: ${{ secrets.NOTIFICATION_INTERNAL_API_KEY }}
+          TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          PUBLISHED_AT: ${{ github.event.release.published_at }}
+          NOTES: ${{ github.event.release.body }}
+        run: |
+          payload=$(jq -n \
+            --arg key "desktop-release-$TAG" \
+            --arg version "$TAG" \
+            --arg url "$RELEASE_URL" \
+            --arg notes "$NOTES" \
+            --arg published "$(date -u -d "$PUBLISHED_AT" +%Y-%m-%dT%H:%M:%S.000Z)" \
+            '{workflowKey: "product.release-published", campaignKey: $key, payload: {version: $version, releaseUrl: $url, releaseNotes: $notes, publishedAt: $published}}')
+
+          status=$(curl -s -o response.json -w '%{http_code}' \
+            --retry 3 --retry-delay 60 --retry-connrefused --max-time 30 \
+            -X POST "$OIPER_API_URL/v1/internal/notifications/campaigns" \
+            -H "content-type: application/json" \
+            -H "x-internal-api-key: $NOTIFICATION_INTERNAL_API_KEY" \
+            --data "$payload") || status="unreachable"
+
+          detail=$(jq -r '.error.message // .jobId // empty' response.json 2>/dev/null || true)
+
+          if [ "$status" = "202" ]; then
+            echo "Release email for $TAG queued on $TARGET ($detail)."
+            echo "Release email for **$TAG** queued on **$TARGET**." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$status" = "unreachable" ]; then
+            reason="server unreachable after 3 retries"
+          else
+            reason="HTTP $status${detail:+ $detail}"
+          fi
+
+          echo "Release email for $TAG was not sent on $TARGET: $reason."
+          echo "Release email for **$TAG** was not sent on **$TARGET**: $reason. The release is fine; re-run this job once $OIPER_API_URL is ready." >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning title=Release email not sent ($TARGET)::$reason"
+          exit 1
