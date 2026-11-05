@@ -55,7 +55,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: oiper/homebrew-tap
-          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
       - name: Update OiPer cask
         shell: bash
