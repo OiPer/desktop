@@ -76,6 +76,18 @@ async function call<T>(payload: Record<string, string>): Promise<T> {
   return response
 }
 
+export async function ping() {
+  const socket = net.connect(pipePath())
+  try {
+    await once(socket, 'connect')
+    return true
+  } catch {
+    return false
+  } finally {
+    socket.destroy()
+  }
+}
+
 export async function workflows() {
   const response = await call<WorkflowsResponse>({ method: 'workflows' })
   if (!response.ok) {
