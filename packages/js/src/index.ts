@@ -1,7 +1,6 @@
-import { once } from 'node:events'
-import net from 'node:net'
-import os from 'node:os'
 import path from 'node:path'
+import { pingNative, requestNative } from './native.js'
+import { isWsl, pingWsl, requestWsl, toWindowsPath } from './wsl.js'
 
 export type Workflow = {
   id: string
@@ -42,50 +41,15 @@ export class OiPerError extends Error {
   }
 }
 
-function pipePath() {
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'com.oiper.desktop', 'oiper.sock')
-  }
-  if (process.platform === 'win32') {
-    return '\\\\.\\pipe\\com.oiper.desktop'
-  }
-  if (process.platform === 'linux') {
-    const configDir = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
-    return path.join(configDir, 'com.oiper.desktop', 'oiper.sock')
-  }
-  throw new OiPerError(`Unsupported platform: ${process.platform}`, null)
-}
-
 async function call<T>(payload: Record<string, string | undefined>): Promise<T> {
-  const socket = net.connect(pipePath())
-  try {
-    await once(socket, 'connect')
-  } catch (error) {
-    throw new OiPerError('Could not connect to OiPer. Is the OiPer app running?', null, { cause: error })
-  }
-
-  socket.setEncoding('utf8')
-  socket.write(`${JSON.stringify(payload)}\n`)
-
-  let data = ''
-  for await (const chunk of socket) {
-    data += chunk
-  }
-
+  const request = `${JSON.stringify(payload)}\n`
+  const data = isWsl ? await requestWsl(request) : await requestNative(request)
   const response: T = JSON.parse(data)
   return response
 }
 
 export async function ping() {
-  const socket = net.connect(pipePath())
-  try {
-    await once(socket, 'connect')
-    return true
-  } catch {
-    return false
-  } finally {
-    socket.destroy()
-  }
+  return isWsl ? pingWsl() : pingNative()
 }
 
 export async function workflows() {
@@ -101,9 +65,10 @@ export async function text(options: {
   contentType: ContentType
   workflowId?: string
 }): Promise<TextResult> {
+  const audioPath = path.resolve(options.audioPath)
   const response = await call<TextResponse>({
     method: 'text',
-    audio_path: path.resolve(options.audioPath),
+    audio_path: isWsl ? await toWindowsPath(audioPath) : audioPath,
     content_type: options.contentType,
     workflow_id: options.workflowId,
   })
