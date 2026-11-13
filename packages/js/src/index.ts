@@ -15,6 +15,7 @@ export type ContentType =
   | 'audio/aac'
   | 'audio/flac'
   | 'audio/ogg'
+  | 'audio/webm'
 
 export type TextResult = {
   text: string
